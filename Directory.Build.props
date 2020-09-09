@@ -23,7 +23,7 @@
   <!-- Language configuration -->
   <PropertyGroup>
     <LangVersion>8.0</LangVersion>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
