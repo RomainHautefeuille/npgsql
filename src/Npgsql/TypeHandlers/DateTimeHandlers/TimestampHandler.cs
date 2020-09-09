@@ -24,8 +24,14 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
         /// <inheritdoc />
         public override NpgsqlTypeHandler<DateTime> Create(PostgresType postgresType, NpgsqlConnection conn)
             => conn.HasIntegerDateTimes  // Check for the legacy floating point timestamps feature
-                ? new TimestampHandler(postgresType, conn.Connector!.ConvertInfinityDateTime)
+                ? CreateTimestampHandler(postgresType, conn.Connector!.ConvertInfinityDateTime)
                 : throw new NotSupportedException($"The deprecated floating-point date/time format is not supported by {nameof(Npgsql)}.");
+
+        /// <summary>
+        /// Factory method for creating TimestampHandler.
+        /// </summary>
+        protected virtual TimestampHandler CreateTimestampHandler(PostgresType postgresType, bool convertInfinityDateTime)
+            => new TimestampHandler(postgresType, convertInfinityDateTime);
     }
 
     /// <summary>
@@ -46,7 +52,15 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
         /// </summary>
         protected readonly bool ConvertInfinityDateTime;
 
-        internal TimestampHandler(PostgresType postgresType, bool convertInfinityDateTime)
+        /// <summary>
+        /// Specify which DateTimeKind to use for reading values out of the database.
+        /// </summary>
+        protected virtual DateTimeKind DefaultDateTimeKind => DateTimeKind.Unspecified;
+
+        /// <summary>
+        /// A type handler for the PostgreSQL timestamp data type.
+        /// </summary>
+        public TimestampHandler(PostgresType postgresType, bool convertInfinityDateTime)
             : base(postgresType) => ConvertInfinityDateTime = convertInfinityDateTime;
 
         #region Read
@@ -94,7 +108,7 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
                 date += 730119; // 730119 = days since era (0001-01-01) for 2000-01-01
                 time *= 10; // To 100ns
 
-                return new NpgsqlDateTime(new NpgsqlDate(date), new TimeSpan(time));
+                return new NpgsqlDateTime(new NpgsqlDate(date), new TimeSpan(time), DefaultDateTimeKind);
             }
             else
             {
@@ -110,7 +124,7 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
                 date = 730119 - date; // 730119 = days since era (0001-01-01) for 2000-01-01
                 time *= 10; // To 100ns
 
-                return new NpgsqlDateTime(new NpgsqlDate(date), new TimeSpan(time));
+                return new NpgsqlDateTime(new NpgsqlDate(date), new TimeSpan(time), DefaultDateTimeKind);
             }
         }
 

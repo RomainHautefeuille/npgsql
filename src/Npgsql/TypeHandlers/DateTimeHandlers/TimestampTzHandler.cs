@@ -24,8 +24,14 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
         /// <inheritdoc />
         public override NpgsqlTypeHandler<DateTime> Create(PostgresType postgresType, NpgsqlConnection conn)
             => conn.HasIntegerDateTimes  // Check for the legacy floating point timestamps feature
-                ? new TimestampTzHandler(postgresType, conn.Connector!.ConvertInfinityDateTime)
+                ? CreateTimestampTzHandler(postgresType, conn.Connector!.ConvertInfinityDateTime)
                 : throw new NotSupportedException($"The deprecated floating-point date/time format is not supported by {nameof(Npgsql)}.");
+
+        /// <summary>
+        /// Factory method for creating TimestampTzHandler.
+        /// </summary>
+        protected virtual TimestampTzHandler CreateTimestampTzHandler(PostgresType postgresType, bool convertInfinityDateTime)
+            => new TimestampTzHandler(postgresType, convertInfinityDateTime);
     }
 
     /// <summary>
@@ -40,7 +46,10 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
     /// </remarks>
     public class TimestampTzHandler : TimestampHandler, INpgsqlSimpleTypeHandler<DateTimeOffset>
     {
-        internal TimestampTzHandler(PostgresType postgresType, bool convertInfinityDateTime)
+        /// <summary>
+        /// A type handler for the PostgreSQL timestamptz data type.
+        /// </summary>
+        public TimestampTzHandler(PostgresType postgresType, bool convertInfinityDateTime)
             : base(postgresType, convertInfinityDateTime) {}
 
         #region Read
@@ -53,7 +62,7 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
             try
             {
                 if (ts.IsFinite)
-                    return ts.ToDateTime().ToLocalTime();
+                    return ToSpecifiedTime(ts.ToDateTime());
                 if (!ConvertInfinityDateTime)
                     throw new InvalidCastException("Can't convert infinite timestamptz values to DateTime");
                 if (ts.IsInfinity)
@@ -70,7 +79,7 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
         protected override NpgsqlDateTime ReadPsv(NpgsqlReadBuffer buf, int len, FieldDescription? fieldDescription = null)
         {
             var ts = ReadTimeStamp(buf, len, fieldDescription);
-            return new NpgsqlDateTime(ts.Date, ts.Time, DateTimeKind.Utc).ToLocalTime();
+            return ToSpecifiedTime(ts.ToDateTime());
         }
 
         DateTimeOffset INpgsqlSimpleTypeHandler<DateTimeOffset>.Read(NpgsqlReadBuffer buf, int len, FieldDescription? fieldDescription)
@@ -80,7 +89,7 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
             try
             {
                 if (ts.IsFinite)
-                    return ts.ToDateTime().ToLocalTime();
+                    return ToSpecifiedTime(ts.ToDateTime());
                 if (!ConvertInfinityDateTime)
                     throw new InvalidCastException("Can't convert infinite timestamptz values to DateTime");
                 if (ts.IsInfinity)
@@ -90,6 +99,18 @@ namespace Npgsql.TypeHandlers.DateTimeHandlers
             catch (Exception e)
             {
                 throw new NpgsqlSafeReadException(e);
+            }
+        }
+
+        private static DateTime ToSpecifiedTime(DateTime input)
+        {
+            switch (input.Kind)
+            {
+                case DateTimeKind.Unspecified:
+                    return input.ToLocalTime();
+                default:
+                    // Already specified.
+                    return input;
             }
         }
 
